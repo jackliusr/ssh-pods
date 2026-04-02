@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ssh-server
+  labels:
+    app: ssh-server
+spec:
+  containers:
+    - name: ssh-server
+      image: alpine:3.20
+      securityContext:
+        capabilities:
+          add:
+            - SYS_CHROOT
+      ports:
+        - containerPort: 22
+      readinessProbe:
+        tcpSocket:
+          port: 22
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 2
+        failureThreshold: 6
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          apk add --no-cache openssh
+          mkdir -p /root/.ssh /run/sshd
+          chmod 700 /root/.ssh
+          ssh-keygen -A
+          /usr/sbin/sshd -D -e
+      volumeMounts:
+        - name: ssh-public-key
+          mountPath: /root/.ssh/authorized_keys
+          subPath: authorized_keys
+          readOnly: true
+  volumes:
+    - name: ssh-public-key
+      secret:
+        secretName: ssh-rsa-keys
+        items:
+          - key: id_rsa_pub
+            path: authorized_keys
+        defaultMode: 0600
